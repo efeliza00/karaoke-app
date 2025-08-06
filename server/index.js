@@ -29,7 +29,7 @@ app.use(
   })
 );
 
-app.use("/youtube", searchSongs);
+app.get("/youtube", searchSongs);
 
 io.on("connection", (socket) => {
   console.log("A user connected");
