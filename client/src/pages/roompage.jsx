@@ -35,7 +35,6 @@ import {
   MediaMuteButton,
   MediaFullscreenButton,
 } from "media-chrome/react";
-import FuzzyText from "../components/fuzzy-text";
 import GradientText from "../components/gradient-text";
 const fetcher = async (...args) =>
   await fetch(...args).then((res) => res.json());
