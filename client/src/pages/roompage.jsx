@@ -272,12 +272,12 @@ const RoomPage = () => {
   return (
     <>
       <div className="min-h-screen w-full font-poppins flex flex-col md:flex-row">
-        <div className="w-full md:w-4/6">
+        <div className="w-full h-full md:w-4/6">
           <MediaController
             style={{
               width: "100%",
-              aspectRatio: "16/9",
             }}
+            className="aspect-video md:h-screen"
           >
             <ReactPlayer
               slot="media"
