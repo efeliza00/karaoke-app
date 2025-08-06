@@ -16,6 +16,18 @@ const __dirname = path.resolve();
 
 const server = createServer(app);
 
+const allowedOrigin =
+  process.env.NODE_ENV === "production"
+    ? undefined // don't restrict, same origin
+    : process.env.BASE_URL;
+
+app.use(
+  cors({
+    origin: allowedOrigin,
+    credentials: true,
+  })
+);
+
 const io = new Server(server, {
   cors: {
     origin: process.env.BASE_URL,
