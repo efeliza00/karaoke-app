@@ -36,6 +36,7 @@ import {
   MediaFullscreenButton,
 } from "media-chrome/react";
 import GradientText from "../components/gradient-text";
+
 const fetcher = async (...args) =>
   await fetch(...args).then((res) => res.json());
 
@@ -166,30 +167,56 @@ const RoomPage = () => {
   const [playing, setPlaying] = useState(false);
   const [seeking, setSeeking] = useState(false);
   const [currentSong, setCurrentSong] = useState("");
+  const [role, setRole] = useState("");
   const [hasJoined, setHasJoined] = useState("pending");
   const { id: roomId } = useParams();
 
   const handlePause = () => {
-    if (!seeking) {
-      socket.emit("pause");
+    if (!seeking && role === "host") {
+      socket.emit("pause", { roomId });
     }
     setPlaying(false);
   };
 
   const handlePlay = () => {
-    if (!seeking) {
-      socket.emit("play");
+    if (!seeking && role === "host") {
+      socket.emit("play", { roomId });
     }
     setPlaying(true);
   };
 
   const handleSeek = (seconds) => {
-    socket.emit("seek", seconds);
+    if (role === "host") {
+      socket.emit("seek", { roomId, time: seconds });
+    }
   };
 
   const handleNextSong = (roomId) => {
     socket.emit("next-song", { roomId });
   };
+  useEffect(() => {
+    const handleAssignedRole = (assignedRole) => {
+      console.log("Assigned role:", assignedRole);
+      setRole(assignedRole);
+    };
+
+    socket.off("assigned-role", handleAssignedRole); // cleanup
+    socket.on("assigned-role", handleAssignedRole); // register
+
+    if (roomId) {
+      socket.emit("check-joined-user", { roomId }, (res) => {
+        if (res.status) {
+          setHasJoined("joined");
+        } else {
+          setHasJoined("not-joined");
+        }
+      });
+    }
+
+    return () => {
+      socket.off("assigned-role", handleAssignedRole);
+    };
+  }, [roomId]);
 
   useEffect(() => {
     socket.emit("get-songlist", { roomId }, (songs) => {
@@ -209,18 +236,6 @@ const RoomPage = () => {
     return () => {
       socket.off("update-songlist");
     };
-  }, [roomId]);
-
-  useEffect(() => {
-    if (roomId) {
-      socket.emit("check-joined-user", { roomId }, (res) => {
-        if (res.status) {
-          setHasJoined("joined");
-        } else {
-          setHasJoined("not-joined");
-        }
-      });
-    }
   }, [roomId]);
 
   useEffect(() => {
@@ -249,24 +264,32 @@ const RoomPage = () => {
     );
   if (hasJoined === "not-joined")
     return (
-      <div className="flex items-center flex-col justify-center h-screen w-full md:p-0 p-4">
-        <GradientText
-          animationSpeed={10}
-          colors={["#ff4040", "#ff7040", "#ff4040", "#ff7040", "#ff4040"]}
-          className="text-5xl md:text-9xl drop-shadow-8xl !font-bold !md:font-extrabold uppercase"
-        >
-          Unauthorized
-        </GradientText>
-        <h3 className="text-xl text-center md:text-3xl mt-4 italic">
-          You are triying to access a room with no authorization. To join a
-          room, click{" "}
-          <Link to="/">
-            <span className="hover:underline text-green-500 hover:text-indigo-600">
-              here
-            </span>
-          </Link>
-        </h3>
-      </div>
+      <>
+        <div className="container mx-auto h-screen px-4 md:px-0 flex items-center justify-center">
+          <div className="w-full max-w-2xl border rounded-2xl shadow-xl border-red-300 p-8 md:p-12 bg-white/10 backdrop-blur-md">
+            <GradientText
+              animationSpeed={10}
+              colors={["#ff4040", "#ff7040", "#ff4040", "#ff7040", "#ff4040"]}
+              className="text-3xl md:text-4xl drop-shadow-8xl font-bold uppercase text-center"
+            >
+              Unauthorized
+            </GradientText>
+
+            <h3 className="text-sm md:text-lg text-gray-400 text-center mt-6  italic">
+              You're trying to access a room without authorization. To join a
+              room, click{" "}
+              <Link
+                to="/"
+                className="text-blue-400 hover:underline hover:text-indigo-400"
+              >
+                here
+              </Link>
+              .
+            </h3>
+          </div>
+        </div>
+        <Footer />
+      </>
     );
 
   return (
@@ -286,6 +309,7 @@ const RoomPage = () => {
                   ? `https://www.youtube.com/watch?v=${currentSong.id}`
                   : ""
               }
+              muted
               playing={playing}
               onSeeking={handleSeek}
               controls={false}
@@ -331,20 +355,20 @@ const RoomPage = () => {
                   onClick={() => handlePause()}
                   className="!bg-gradient-to-r !from-violet-600 !to-indigo-600"
                   size="input-xl"
+                  disabled={role !== "host"}
                 >
                   <Pause />
                 </ActionIcon>
               </Tooltip>
             ) : (
-              <Tooltip
-                label="P
-           lay"
-              >
+              <Tooltip label="Play">
                 <ActionIcon
                   onClick={() => handlePlay()}
                   className="!bg-gradient-to-r !from-violet-600 !to-indigo-600"
                   size="input-xl"
-                  disabled={songs.length === 0 || !currentSong}
+                  disabled={
+                    songs.length === 0 || !currentSong || role !== "host"
+                  }
                 >
                   <Play />
                 </ActionIcon>
@@ -356,7 +380,7 @@ const RoomPage = () => {
                 onClick={() => handleNextSong(roomId)}
                 size="input-xl"
                 className="!bg-gradient-to-r !from-violet-600 !to-indigo-600"
-                disabled={songs.length === 0 || !currentSong}
+                disabled={songs.length === 0 || !currentSong || role !== "host"}
               >
                 <CircleArrowRight />
               </ActionIcon>

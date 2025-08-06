@@ -19,7 +19,7 @@ export const roomControls = (socket) => {
       members: [socket.id],
       songs: [],
     });
-
+    socket.emit("assigned-role", "host");
     console.log("Room created:", room);
     callback({
       status: true,
@@ -42,7 +42,7 @@ export const roomControls = (socket) => {
     rooms.set(roomId, room);
 
     socket.join(roomId);
-
+    socket.emit("assigned-role", "viewer");
     socket.to(roomId).emit("joined-room", `${socket.id} has joined the room`);
 
     callback({
@@ -97,6 +97,10 @@ export const roomControls = (socket) => {
       });
     }
 
+    // ✅ Determine role and emit it again
+    const role = socket.id === room.host ? "host" : "viewer";
+    socket.emit("assigned-role", role);
+
     return callback({
       status: true,
       message: "User is a member of the room.",
@@ -145,9 +149,27 @@ export const mediaControls = (socket, io) => {
     }
   });
 
-  socket.on("play", () => socket.broadcast.emit("play"));
-  socket.on("pause", () => socket.broadcast.emit("pause"));
-  socket.on("seek", (time) => socket.broadcast.emit("seek", time));
+  socket.on("play", ({ roomId }) => {
+    const room = rooms.get(roomId);
+    if (room?.host === socket.id) {
+      socket.to(roomId).emit("play");
+    }
+  });
+
+  socket.on("pause", ({ roomId }) => {
+    const room = rooms.get(roomId);
+    if (room?.host === socket.id) {
+      socket.to(roomId).emit("pause");
+    }
+  });
+
+  socket.on("seek", ({ roomId, time }) => {
+    const room = rooms.get(roomId);
+    if (room?.host === socket.id) {
+      socket.to(roomId).emit("seek", time);
+    }
+  });
+
   socket.on("next-song", ({ roomId }) => {
     const room = rooms.get(roomId);
     if (room?.songs.length > 0) {
