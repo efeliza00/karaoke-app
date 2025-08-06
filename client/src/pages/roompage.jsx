@@ -10,6 +10,7 @@ import {
   Flex,
   ActionIconGroup,
   Tooltip,
+  Divider,
 } from "@mantine/core";
 import {
   Plus,
@@ -21,7 +22,7 @@ import {
   CircleArrowRight,
 } from "lucide-react";
 import { socket } from "../libs/socket";
-import { useParams } from "react-router";
+import { Link, useParams } from "react-router";
 import { notifications } from "@mantine/notifications";
 import { useEffect } from "react";
 import Lottie from "lottie-react";
@@ -34,6 +35,8 @@ import {
   MediaMuteButton,
   MediaFullscreenButton,
 } from "media-chrome/react";
+import FuzzyText from "../components/fuzzy-text";
+import GradientText from "../components/gradient-text";
 const fetcher = async (...args) =>
   await fetch(...args).then((res) => res.json());
 
@@ -164,27 +167,8 @@ const RoomPage = () => {
   const [playing, setPlaying] = useState(false);
   const [seeking, setSeeking] = useState(false);
   const [currentSong, setCurrentSong] = useState("");
+  const [hasJoined, setHasJoined] = useState("pending");
   const { id: roomId } = useParams();
-
-  useEffect(() => {
-    socket.emit("get-songlist", { roomId }, (songs) => {
-      setSongs(songs);
-      if (songs.length > 0) {
-        setCurrentSong(songs[0]);
-      }
-    });
-
-    socket.on("update-songlist", (updatedSongs) => {
-      setSongs(updatedSongs);
-      if (updatedSongs.length > 0) {
-        setTimeout(() => setCurrentSong(updatedSongs[0]), 100);
-      }
-    });
-
-    return () => {
-      socket.off("update-songlist");
-    };
-  }, [roomId]);
 
   const handlePause = () => {
     if (!seeking) {
@@ -209,6 +193,38 @@ const RoomPage = () => {
   };
 
   useEffect(() => {
+    socket.emit("get-songlist", { roomId }, (songs) => {
+      setSongs(songs);
+      if (songs.length > 0) {
+        setCurrentSong(songs[0]);
+      }
+    });
+
+    socket.on("update-songlist", (updatedSongs) => {
+      setSongs(updatedSongs);
+      if (updatedSongs.length > 0) {
+        setTimeout(() => setCurrentSong(updatedSongs[0]), 100);
+      }
+    });
+
+    return () => {
+      socket.off("update-songlist");
+    };
+  }, [roomId]);
+
+  useEffect(() => {
+    if (roomId) {
+      socket.emit("check-joined-user", { roomId }, (res) => {
+        if (res.status) {
+          setHasJoined("joined");
+        } else {
+          setHasJoined("not-joined");
+        }
+      });
+    }
+  }, [roomId]);
+
+  useEffect(() => {
     socket.on("play", () => setPlaying(true));
 
     socket.on("pause", () => setPlaying(false));
@@ -225,6 +241,34 @@ const RoomPage = () => {
       socket.off("seek");
     };
   }, []);
+
+  if (hasJoined === "pending")
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="loader !bg-gradient-to-r  !from-blue-700 !to-purple-600 b" />
+      </div>
+    );
+  if (hasJoined === "not-joined")
+    return (
+      <div className="flex items-center flex-col justify-center h-screen w-full md:p-0 p-4">
+        <GradientText
+          animationSpeed={10}
+          colors={["#ff4040", "#ff7040", "#ff4040", "#ff7040", "#ff4040"]}
+          className="text-5xl md:text-9xl drop-shadow-8xl !font-bold !md:font-extrabold uppercase"
+        >
+          Unauthorized
+        </GradientText>
+        <h3 className="text-xl text-center md:text-3xl mt-4 italic">
+          You are triying to access a room with no authorization. To join a
+          room, click{" "}
+          <Link to="/">
+            <span className="hover:underline text-green-500 hover:text-indigo-600">
+              here
+            </span>
+          </Link>
+        </h3>
+      </div>
+    );
 
   return (
     <>

@@ -39,7 +39,6 @@ export const roomControls = (socket) => {
     const room = rooms.get(roomId);
     room.members.push(socket.id);
 
-    // 👇 Re-set the room in the map after modifying it
     rooms.set(roomId, room);
 
     socket.join(roomId);
@@ -49,7 +48,7 @@ export const roomControls = (socket) => {
     callback({
       status: true,
       message: "You have joined the room!",
-      roomId, // optional: helpful if the client wants to know it
+      roomId,
     });
   });
 
@@ -78,6 +77,29 @@ export const roomControls = (socket) => {
     callback?.({
       status: true,
       message: `You left the room ${roomId}`,
+    });
+  });
+
+  socket.on("check-joined-user", ({ roomId }, callback) => {
+    const room = rooms.get(roomId);
+
+    if (!room) {
+      return callback({
+        status: false,
+        message: "Room does not exist.",
+      });
+    }
+
+    if (!room.members || !room.members.includes(socket.id)) {
+      return callback({
+        status: false,
+        message: "User is not a member of this room.",
+      });
+    }
+
+    return callback({
+      status: true,
+      message: "User is a member of the room.",
     });
   });
 };
