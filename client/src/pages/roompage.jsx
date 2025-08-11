@@ -6,19 +6,16 @@ import {
   TextInput,
   Combobox,
   useCombobox,
-  ActionIcon,
+  Button,
   Flex,
-  ActionIconGroup,
+  ActionIcon,
   Tooltip,
-  Divider,
 } from "@mantine/core";
 import {
   Plus,
   TriangleAlert,
   Search,
   LoaderCircle,
-  Play,
-  Pause,
   CircleArrowRight,
 } from "lucide-react";
 import { socket } from "../libs/socket";
@@ -280,7 +277,7 @@ const RoomPage = () => {
     );
   return (
     <>
-      <div className="min-h-screen h-screen w-full font-poppins flex flex-col md:flex-row">
+      <div className="min-h-screen  h-screen  w-full font-poppins flex flex-col md:flex-row">
         <div className="w-full h-full md:w-4/6">
           <ReactPlayer
             ref={playerRef}
@@ -359,15 +356,22 @@ const RoomPage = () => {
         <div className="w-full md:w-2/6 px-4 space-y-4 shadow-inner py-4">
           <Navbar />
           <SearchSongs roomId={roomId} />
-          <Tooltip label="Next Song">
-            <ActionIcon
+          <Tooltip
+            label={
+              songs.length === 0 || !currentSong || role !== "host"
+                ? "You are not the host."
+                : "Next Song"
+            }
+          >
+            <Button
               onClick={() => handleNextSong(roomId)}
               size="input-xl"
-              className="!bg-gradient-to-r !from-violet-600 !to-indigo-600"
+              className="!bg-gradient-to-r  !w-full !from-violet-600 !to-indigo-600"
               disabled={songs.length === 0 || !currentSong || role !== "host"}
             >
-              <CircleArrowRight />
-            </ActionIcon>
+              <CircleArrowRight className="mr-4" />
+              Next Song
+            </Button>
           </Tooltip>
 
           <div
