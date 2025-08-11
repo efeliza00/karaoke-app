@@ -163,6 +163,7 @@ const RoomPage = () => {
   const playerRef = useRef(null);
   const [currentSong, setCurrentSong] = useState("");
   const [role, setRole] = useState("");
+  const [syncInProgress, setSyncInProgress] = useState(false);
   const [hasJoined, setHasJoined] = useState("pending");
   const { id: roomId } = useParams();
 
@@ -171,12 +172,11 @@ const RoomPage = () => {
   };
   useEffect(() => {
     const handleAssignedRole = (assignedRole) => {
-      console.log("Assigned role:", assignedRole);
       setRole(assignedRole);
     };
 
-    socket.off("assigned-role", handleAssignedRole); // cleanup
-    socket.on("assigned-role", handleAssignedRole); // register
+    socket.off("assigned-role", handleAssignedRole);
+    socket.on("assigned-role", handleAssignedRole);
 
     if (roomId) {
       socket.emit("check-joined-user", { roomId }, (res) => {
@@ -220,6 +220,8 @@ const RoomPage = () => {
       const videoEl = playerRef.current;
       const drift = Math.abs(videoEl.currentTime - time);
 
+      setSyncInProgress(true);
+
       switch (action) {
         case "play":
           if (drift > 0.1) videoEl.currentTime = time;
@@ -234,6 +236,8 @@ const RoomPage = () => {
           if (drift > 0.1) videoEl.currentTime = time;
           break;
       }
+
+      setTimeout(() => setSyncInProgress(false), 500);
     });
     return () => {
       socket.off("video-status");
@@ -259,7 +263,7 @@ const RoomPage = () => {
               Unauthorized
             </GradientText>
 
-            <h3 className="text-sm md:text-xl text-gray-400 text-center mt-6 text-indigo-300  ">
+            <h3 className="text-sm md:text-xl text-center mt-6 text-indigo-300  ">
               You're trying to access a room without authorization. To join a
               room, click{" "}
               <Link
@@ -301,6 +305,7 @@ const RoomPage = () => {
               "--controls": "none",
             }}
             onPlay={() => {
+              if (syncInProgress) return;
               socket.emit("video-sync", {
                 roomId,
                 videoState: {
@@ -311,6 +316,7 @@ const RoomPage = () => {
               });
             }}
             onPause={() => {
+              if (syncInProgress) return;
               socket.emit("video-sync", {
                 roomId,
                 videoState: {
@@ -321,6 +327,7 @@ const RoomPage = () => {
               });
             }}
             onSeeking={() => {
+              if (syncInProgress) return;
               socket.emit("video-sync", {
                 roomId,
                 videoState: {
@@ -331,6 +338,7 @@ const RoomPage = () => {
               });
             }}
             onSeeked={() => {
+              if (syncInProgress) return;
               socket.emit("video-sync", {
                 roomId,
                 videoState: {
@@ -341,6 +349,7 @@ const RoomPage = () => {
               });
             }}
             onEnded={() => {
+              if (syncInProgress) return;
               socket.emit("video-sync", {
                 roomId,
                 videoState: {
