@@ -164,32 +164,10 @@ const SearchSongs = ({ roomId }) => {
 const RoomPage = () => {
   const [songs, setSongs] = useState([]);
   const playerRef = useRef(null);
-  const [playing, setPlaying] = useState(false);
-  const [seeking, setSeeking] = useState(false);
   const [currentSong, setCurrentSong] = useState("");
   const [role, setRole] = useState("");
   const [hasJoined, setHasJoined] = useState("pending");
   const { id: roomId } = useParams();
-
-  const handlePause = () => {
-    if (!seeking && role === "host") {
-      socket.emit("pause", { roomId });
-    }
-    setPlaying(false);
-  };
-
-  const handlePlay = () => {
-    if (!seeking && role === "host") {
-      socket.emit("play", { roomId });
-    }
-    setPlaying(true);
-  };
-
-  const handleSeek = (seconds) => {
-    if (role === "host") {
-      socket.emit("seek", { roomId, time: seconds });
-    }
-  };
 
   const handleNextSong = (roomId) => {
     socket.emit("next-song", { roomId });
@@ -239,22 +217,31 @@ const RoomPage = () => {
   }, [roomId]);
 
   useEffect(() => {
-    socket.on("play", () => setPlaying(true));
+    socket.on("video-status", ({ action, time, senderId }) => {
+      if (senderId === socket.id) return;
 
-    socket.on("pause", () => setPlaying(false));
+      const videoEl = playerRef.current;
+      const drift = Math.abs(videoEl.currentTime - time);
 
-    socket.on("seek", (time) => {
-      setSeeking(true);
-      playerRef.current.seekTo(time, "seconds");
-      setTimeout(() => setSeeking(false), 200);
+      switch (action) {
+        case "play":
+          if (drift > 0.1) videoEl.currentTime = time;
+          videoEl.play();
+          break;
+        case "pause":
+          if (drift > 0.1) videoEl.currentTime = time;
+          videoEl.pause();
+          break;
+        case "seeking":
+        case "seeked":
+          if (drift > 0.1) videoEl.currentTime = time;
+          break;
+      }
     });
-
     return () => {
-      socket.off("play");
-      socket.off("pause");
-      socket.off("seek");
+      socket.off("video-status");
     };
-  }, []);
+  }, [roomId, playerRef]);
 
   if (hasJoined === "pending")
     return (
@@ -266,16 +253,16 @@ const RoomPage = () => {
     return (
       <>
         <div className="container mx-auto h-screen px-4 md:px-0 flex items-center justify-center">
-          <div className="w-full max-w-2xl border rounded-2xl shadow-xl border-red-300 p-8 md:p-12 bg-white/10 backdrop-blur-md">
+          <div className="w-full max-w-2xl border border-indigo-200 rounded-2xl shadow-md bg-indigo-200/30 p-8 md:p-12  backdrop-blur-md">
             <GradientText
               animationSpeed={10}
-              colors={["#ff4040", "#ff7040", "#ff4040", "#ff7040", "#ff4040"]}
-              className="text-3xl md:text-4xl drop-shadow-8xl font-bold uppercase text-center"
+              colors={["#7241D5", "#ff7040", "#7241D5", "#ff7040", "#7241D5"]}
+              className="text-3xl px-4 py-6 !rounded-none md:text-4xl font-bold uppercase text-center"
             >
               Unauthorized
             </GradientText>
 
-            <h3 className="text-sm md:text-lg text-gray-400 text-center mt-6  italic">
+            <h3 className="text-sm md:text-xl text-gray-400 text-center mt-6 text-indigo-300  ">
               You're trying to access a room without authorization. To join a
               room, click{" "}
               <Link
@@ -291,101 +278,97 @@ const RoomPage = () => {
         <Footer />
       </>
     );
-
   return (
     <>
-      <div className="min-h-screen w-full font-poppins flex flex-col md:flex-row">
+      <div className="min-h-screen h-screen w-full font-poppins flex flex-col md:flex-row">
         <div className="w-full h-full md:w-4/6">
-          <MediaController
+          <ReactPlayer
+            ref={playerRef}
+            src={
+              currentSong
+                ? `https://www.youtube.com/watch?v=${currentSong?.id}`
+                : ""
+            }
+            config={{
+              youtube: {
+                origin: "*",
+              },
+            }}
+            controls
+            width="100%"
+            height="100%"
+            className="aspect-video md:h-full"
             style={{
               width: "100%",
+              height: "100%",
+              "--controls": "none",
             }}
-            className="aspect-video md:h-screen"
-          >
-            <ReactPlayer
-              slot="media"
-              src={
-                currentSong
-                  ? `https://www.youtube.com/watch?v=${currentSong.id}`
-                  : ""
-              }
-              muted
-              playing={playing}
-              onSeeking={handleSeek}
-              controls={false}
-              width="100%"
-              height="100%"
-              style={{
-                width: "100%",
-                height: "100%",
-                "--controls": "none",
-              }}
-              onPlaying={(e) => {
-                setPlaying(e.returnValue);
-              }}
-              onPlay={handlePlay}
-              onPause={handlePause}
-              onSeeked={handleSeek}
-              onEnded={() => {
-                socket.emit("video-ended", { roomId });
-                const currentIndex = songs.findIndex(
-                  (s) => s.id === currentSong.id
-                );
-                if (currentIndex !== -1 && currentIndex + 1 < songs.length) {
-                  setCurrentSong(songs[currentIndex + 1]);
-                } else {
-                  setCurrentSong("");
-                }
-              }}
-            />
-            <MediaControlBar>
-              <MediaMuteButton />
-              <MediaFullscreenButton />
-            </MediaControlBar>
-          </MediaController>
+            onPlay={() => {
+              socket.emit("video-sync", {
+                roomId,
+                videoState: {
+                  action: "play",
+                  time: playerRef.current.currentTime,
+                  senderId: socket.id,
+                },
+              });
+            }}
+            onPause={() => {
+              socket.emit("video-sync", {
+                roomId,
+                videoState: {
+                  action: "pause",
+                  time: playerRef.current.currentTime,
+                  senderId: socket.id,
+                },
+              });
+            }}
+            onSeeking={() => {
+              socket.emit("video-sync", {
+                roomId,
+                videoState: {
+                  action: "seeking",
+                  time: playerRef.current.currentTime,
+                  senderId: socket.id,
+                },
+              });
+            }}
+            onSeeked={() => {
+              socket.emit("video-sync", {
+                roomId,
+                videoState: {
+                  action: "seeked",
+                  time: playerRef.current.currentTime,
+                  senderId: socket.id,
+                },
+              });
+            }}
+            onEnded={() => {
+              socket.emit("video-sync", {
+                roomId,
+                videoState: {
+                  action: "ended",
+                  time: playerRef.current.currentTime,
+                  senderId: socket.id,
+                },
+              });
+              socket.emit("next-song", { roomId });
+            }}
+          />
         </div>
         <div className="w-full md:w-2/6 px-4 space-y-4 shadow-inner py-4">
           <Navbar />
           <SearchSongs roomId={roomId} />
-
-          <ActionIconGroup className="justify-center">
-            {playing ? (
-              <Tooltip label="Pause">
-                <ActionIcon
-                  onClick={() => handlePause()}
-                  className="!bg-gradient-to-r !from-violet-600 !to-indigo-600"
-                  size="input-xl"
-                  disabled={role !== "host"}
-                >
-                  <Pause />
-                </ActionIcon>
-              </Tooltip>
-            ) : (
-              <Tooltip label="Play">
-                <ActionIcon
-                  onClick={() => handlePlay()}
-                  className="!bg-gradient-to-r !from-violet-600 !to-indigo-600"
-                  size="input-xl"
-                  disabled={
-                    songs.length === 0 || !currentSong || role !== "host"
-                  }
-                >
-                  <Play />
-                </ActionIcon>
-              </Tooltip>
-            )}
-
-            <Tooltip label="Next Song">
-              <ActionIcon
-                onClick={() => handleNextSong(roomId)}
-                size="input-xl"
-                className="!bg-gradient-to-r !from-violet-600 !to-indigo-600"
-                disabled={songs.length === 0 || !currentSong || role !== "host"}
-              >
-                <CircleArrowRight />
-              </ActionIcon>
-            </Tooltip>
-          </ActionIconGroup>
+          <Tooltip label="Next Song">
+            <ActionIcon
+              onClick={() => handleNextSong(roomId)}
+              size="input-xl"
+              className="!bg-gradient-to-r !from-violet-600 !to-indigo-600"
+              disabled={songs.length === 0 || !currentSong || role !== "host"}
+            >
+              <CircleArrowRight />
+            </ActionIcon>
+          </Tooltip>
 
           <div
             className={`flex items-center p-3 border rounded-xl ${

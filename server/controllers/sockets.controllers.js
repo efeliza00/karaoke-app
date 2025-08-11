@@ -96,8 +96,6 @@ export const roomControls = (socket) => {
         message: "User is not a member of this room.",
       });
     }
-
-    // ✅ Determine role and emit it again
     const role = socket.id === room.host ? "host" : "viewer";
     socket.emit("assigned-role", role);
 
@@ -149,25 +147,8 @@ export const mediaControls = (socket, io) => {
     }
   });
 
-  socket.on("play", ({ roomId }) => {
-    const room = rooms.get(roomId);
-    if (room?.host === socket.id) {
-      socket.to(roomId).emit("play");
-    }
-  });
-
-  socket.on("pause", ({ roomId }) => {
-    const room = rooms.get(roomId);
-    if (room?.host === socket.id) {
-      socket.to(roomId).emit("pause");
-    }
-  });
-
-  socket.on("seek", ({ roomId, time }) => {
-    const room = rooms.get(roomId);
-    if (room?.host === socket.id) {
-      socket.to(roomId).emit("seek", time);
-    }
+  socket.on("video-sync", ({ videoState, roomId }) => {
+    io.to(roomId).emit("video-status", videoState);
   });
 
   socket.on("next-song", ({ roomId }) => {
