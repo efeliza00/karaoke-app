@@ -220,7 +220,7 @@ const RoomPage = () => {
 
       silentRef.current = true; // block outgoing emits
       const drift = Math.abs(videoEl.currentTime - time);
-      if (drift > 0.1) videoEl.currentTime = time;
+      if (drift > 0.3) videoEl.currentTime = time;
 
       if (action === "play") videoEl.play();
       if (action === "pause") videoEl.pause();
