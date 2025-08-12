@@ -148,7 +148,10 @@ export const mediaControls = (socket, io) => {
   });
 
   socket.on("video-sync", ({ videoState, roomId }) => {
-    io.to(roomId).emit("video-status", videoState);
+    io.to(roomId).emit("video-status", {
+      ...videoState,
+      senderId: socket.id,
+    });
   });
 
   socket.on("next-song", ({ roomId }) => {

@@ -163,8 +163,8 @@ const RoomPage = () => {
   const playerRef = useRef(null);
   const [currentSong, setCurrentSong] = useState("");
   const [role, setRole] = useState("");
-  const [syncInProgress, setSyncInProgress] = useState(false);
   const [hasJoined, setHasJoined] = useState("pending");
+  const silentRef = useRef(false);
   const { id: roomId } = useParams();
 
   const handleNextSong = (roomId) => {
@@ -214,35 +214,25 @@ const RoomPage = () => {
   }, [roomId]);
 
   useEffect(() => {
-    socket.on("video-status", ({ action, time, senderId }) => {
-      if (senderId === socket.id) return;
-
+    socket.on("video-status", ({ action, time }) => {
       const videoEl = playerRef.current;
+      if (!videoEl) return;
+
+      silentRef.current = true; // block outgoing emits
       const drift = Math.abs(videoEl.currentTime - time);
+      if (drift > 0.1) videoEl.currentTime = time;
 
-      setSyncInProgress(true);
+      if (action === "play") videoEl.play();
+      if (action === "pause") videoEl.pause();
+      if (action === "seeked") videoEl.currentTime = time;
 
-      switch (action) {
-        case "play":
-          if (drift > 0.1) videoEl.currentTime = time;
-          videoEl.play();
-          break;
-        case "pause":
-          if (drift > 0.1) videoEl.currentTime = time;
-          videoEl.pause();
-          break;
-        case "seeking":
-        case "seeked":
-          if (drift > 0.1) videoEl.currentTime = time;
-          break;
-      }
-
-      setTimeout(() => setSyncInProgress(false), 500);
+      setTimeout(() => {
+        silentRef.current = false;
+      }, 100);
     });
-    return () => {
-      socket.off("video-status");
-    };
-  }, [roomId, playerRef]);
+
+    return () => socket.off("video-status");
+  }, []);
 
   if (hasJoined === "pending")
     return (
@@ -305,7 +295,7 @@ const RoomPage = () => {
               "--controls": "none",
             }}
             onPlay={() => {
-              if (syncInProgress) return;
+              if (silentRef.current) return;
               socket.emit("video-sync", {
                 roomId,
                 videoState: {
@@ -316,7 +306,7 @@ const RoomPage = () => {
               });
             }}
             onPause={() => {
-              if (syncInProgress) return;
+              if (silentRef.current) return;
               socket.emit("video-sync", {
                 roomId,
                 videoState: {
@@ -327,7 +317,7 @@ const RoomPage = () => {
               });
             }}
             onSeeking={() => {
-              if (syncInProgress) return;
+              if (silentRef.current) return;
               socket.emit("video-sync", {
                 roomId,
                 videoState: {
@@ -338,7 +328,7 @@ const RoomPage = () => {
               });
             }}
             onSeeked={() => {
-              if (syncInProgress) return;
+              if (silentRef.current) return;
               socket.emit("video-sync", {
                 roomId,
                 videoState: {
@@ -349,7 +339,7 @@ const RoomPage = () => {
               });
             }}
             onEnded={() => {
-              if (syncInProgress) return;
+              if (silentRef.current) return;
               socket.emit("video-sync", {
                 roomId,
                 videoState: {
