@@ -214,24 +214,27 @@ const RoomPage = () => {
   }, [roomId]);
 
   useEffect(() => {
-    socket.on("video-status", ({ action, time }) => {
+    const handler = ({ action, time }) => {
       const videoEl = playerRef.current;
       if (!videoEl) return;
 
-      silentRef.current = true; // block outgoing emits
+      // Skip if we sent this action
+      if (silentRef.current) return;
+
       const drift = Math.abs(videoEl.currentTime - time);
-      if (drift > 0.3) videoEl.currentTime = time;
 
-      if (action === "play") videoEl.play();
-      if (action === "pause") videoEl.pause();
-      if (action === "seeked") videoEl.currentTime = time;
+      if (action === "seeked") {
+        if (drift > 0.3) videoEl.currentTime = time;
+      } else if (action === "play") {
+        if (drift > 0.3) videoEl.currentTime = time;
+        videoEl.play();
+      } else if (action === "pause") {
+        videoEl.pause();
+      }
+    };
 
-      setTimeout(() => {
-        silentRef.current = false;
-      }, 100);
-    });
-
-    return () => socket.off("video-status");
+    socket.on("video-status", handler);
+    return () => socket.off("video-status", handler);
   }, []);
 
   if (hasJoined === "pending")
